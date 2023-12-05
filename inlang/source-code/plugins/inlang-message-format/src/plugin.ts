@@ -27,12 +27,11 @@ export const plugin: Plugin<{
 
 		for (const tag of settings.languageTags) {
 			try {
-				const file = await nodeishFs.readFile(
-					settings["plugin.inlang.messageFormat"].pathPattern.replace("{languageTag}", tag),
-					{
-						encoding: "utf-8",
-					}
-				)
+				const pathPattern = settings["plugin.inlang.messageFormat"].pathPatterns[0]
+				if (!pathPattern) continue
+				const file = await nodeishFs.readFile(pathPattern.replace("{languageTag}", tag), {
+					encoding: "utf-8",
+				})
 				stringifyWithFormatting[tag] = detectJsonFormatting(file)
 				const json = JSON.parse(file)
 				for (const key in json) {
@@ -72,13 +71,12 @@ export const plugin: Plugin<{
 			}
 		}
 		for (const [languageTag, messages] of Object.entries(result)) {
-			const path = settings["plugin.inlang.messageFormat"].pathPattern.replace(
-				"{languageTag}",
-				languageTag
-			)
+			const pathPattern = settings["plugin.inlang.messageFormat"].pathPatterns[0]
+			if (!pathPattern) continue
+			const path = pathPattern.replace("{languageTag}", languageTag)
 			await createDirectoryIfNotExits({ path, nodeishFs })
 			await nodeishFs.writeFile(
-				settings["plugin.inlang.messageFormat"].pathPattern.replace("{languageTag}", languageTag),
+				pathPattern.replace("{languageTag}", languageTag),
 				(
 					stringifyWithFormatting[languageTag] ??
 					// default to tab indentation
