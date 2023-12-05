@@ -26,34 +26,45 @@ export const plugin: Plugin<{
 		const result: Record<string, Message> = {}
 
 		for (const tag of settings.languageTags) {
-			try {
-				const pathPattern = settings["plugin.inlang.messageFormat"].pathPatterns[0]
-				if (!pathPattern) continue
-				const file = await nodeishFs.readFile(pathPattern.replace("{languageTag}", tag), {
-					encoding: "utf-8",
-				})
-				stringifyWithFormatting[tag] = detectJsonFormatting(file)
-				const json = JSON.parse(file)
-				for (const key in json) {
-					if (key === "$schema") {
-						continue
-					}
-					// message already exists, add the variants
-					else if (result[key]) {
-						// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-						result[key]!.variants = [
+			for (const pathPattern of settings["plugin.inlang.messageFormat"].pathPatterns) {
+				try {
+					const file = await nodeishFs.readFile(pathPattern.replace("{languageTag}", tag), {
+						encoding: "utf-8",
+					})
+					stringifyWithFormatting[tag] = detectJsonFormatting(file)
+					const json = JSON.parse(file)
+					for (const key in json) {
+						if (key === "$schema") {
+							continue
+						}
+						// message already exists, add the variants
+						else if (result[key]) {
 							// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-							...result[key]!.variants,
-							...parseMessage({ key, value: json[key], languageTag: tag }).variants,
-						]
+							const variant = result[key]!.variants.find(({ languageTag }) => languageTag === tag)
+							if (variant) {
+								const replacement = parseMessage({
+									key,
+									value: json[key],
+									languageTag: tag,
+								}).variants.find(({ languageTag }) => languageTag === tag)
+								Object.assign(variant, replacement)
+							} else {
+								// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+								result[key]!.variants = [
+									// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+									...result[key]!.variants,
+									...parseMessage({ key, value: json[key], languageTag: tag }).variants,
+								]
+							}
+						}
+						// message does not exist yet, create it
+						else {
+							result[key] = parseMessage({ key, value: json[key], languageTag: tag })
+						}
 					}
-					// message does not exist yet, create it
-					else {
-						result[key] = parseMessage({ key, value: json[key], languageTag: tag })
-					}
+				} catch {
+					// file does not exist. likely, no translations for the file exist yet.
 				}
-			} catch {
-				// file does not exist. likely, no translations for the file exist yet.
 			}
 		}
 		return Object.values(result)
@@ -71,7 +82,7 @@ export const plugin: Plugin<{
 			}
 		}
 		for (const [languageTag, messages] of Object.entries(result)) {
-			const pathPattern = settings["plugin.inlang.messageFormat"].pathPatterns[0]
+			const [pathPattern] = settings["plugin.inlang.messageFormat"].pathPatterns.slice(-1)
 			if (!pathPattern) continue
 			const path = pathPattern.replace("{languageTag}", languageTag)
 			await createDirectoryIfNotExits({ path, nodeishFs })
